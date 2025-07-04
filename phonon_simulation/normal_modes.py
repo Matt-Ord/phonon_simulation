@@ -8,6 +8,14 @@ import numpy as np
 
 @dataclass
 class System:
+    """
+    Represents a 1D, 2D, or 3D lattice system for phonon calculations.
+
+    Attributes
+    ----------
+    The physical system containing lattice constant, number of repeats, spring constants, and mass of particles.
+    """
+
     lattice_constant: tuple[float, float, float]
     number_of_repeats: tuple[int, int, int]
     spring_constant: tuple[float, float, float]
@@ -46,26 +54,11 @@ def calculate_normal_modes(
         (2 * k / m) * (1 - np.cos(q_vals * system.lattice_constant[0]))
     )
     # Prepare output string
-    output = []
-    output.extend(
-        (
-            f"Calculating normal modes for system: {system}\n",
-            "Normal mode frequencies (omega):\n",
-            np.array2string(omega, precision=6, separator=", ") + "\n",
-            "Normal modes (eigenvectors):\n",
-            np.array2string(modes, precision=6, separator=", ") + "\n",
-            "Wave vectors (q):\n",
-            np.array2string(q_vals, precision=6, separator=", ") + "\n",
-            "Dispersion relation omega(q):\n",
-            np.array2string(dispersion, precision=6, separator=", ") + "\n",
-        )
-    )
-
     # Generate output file name from input parameters if not provided
 
     output = []
     output.extend(
-        (
+        [
             f"Calculating normal modes for system: {system}\n",
             "Normal mode frequencies (omega):\n",
             np.array2string(omega, precision=6, separator=", ") + "\n",
@@ -75,7 +68,7 @@ def calculate_normal_modes(
             np.array2string(q_vals, precision=6, separator=", ") + "\n",
             "Dispersion relation omega(q):\n",
             np.array2string(dispersion, precision=6, separator=", ") + "\n",
-        )
+        ]
     )
 
     # Save to file
@@ -83,23 +76,24 @@ def calculate_normal_modes(
         f.writelines(output)
 
     print(f"Output saved to '{output_file}'.")
-
-    plt.figure(figsize=(6, 4))
-    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")
-    plt.axvline(
+    # I had to write type: ignore to avoid type errors in the following lines from plt.something. Not sure why but it works with or without the type: ignore comments.
+    # Plotting the dispersion relation
+    plt.figure(figsize=(6, 4))  # type: ignore
+    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")  # type: ignore
+    plt.axvline(  # type: ignore
         np.pi / system.lattice_constant[0],
         color="r",
         linestyle="--",
         label="BZ boundary",
     )
-    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")
-    plt.xlabel("Wave vector q")
-    plt.ylabel("Frequency ω(q)")
-    plt.title("Phonon Dispersion Relation for 1D Chain")
-    plt.grid(True)
-    plt.legend()
+    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")  # type: ignore
+    plt.xlabel("Wave vector q")  # type: ignore
+    plt.ylabel("Frequency ω(q)")  # type: ignore
+    plt.title("Phonon Dispersion Relation for 1D Chain")  # type: ignore
+    plt.grid(True)  # type: ignore
+    plt.legend()  # type: ignore
     plt.tight_layout()
     plot_file = output_file.rsplit(".", 1)[0] + "_plot.png"
-    plt.savefig(plot_file)
+    plt.savefig(plot_file)  # type: ignore
     print(f"Plot saved to '{plot_file}'.")
-    plt.show()
+    plt.show()  # type: ignore
