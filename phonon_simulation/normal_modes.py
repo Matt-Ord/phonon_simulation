@@ -78,22 +78,22 @@ def calculate_normal_modes(
     print(f"Output saved to '{output_file}'.")
     # I had to write type: ignore to avoid type errors in the following lines from plt.something. Not sure why but it works with or without the type: ignore comments.
     # Plotting the dispersion relation
-    plt.figure(figsize=(6, 4))  # type: ignore
-    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")  # type: ignore
-    plt.axvline(  # type: ignore
+    plt.figure(figsize=(6, 4))
+    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")
+    plt.axvline(
         np.pi / system.lattice_constant[0],
         color="r",
         linestyle="--",
         label="BZ boundary",
     )
-    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")  # type: ignore
-    plt.xlabel("Wave vector q")  # type: ignore
-    plt.ylabel("Frequency ω(q)")  # type: ignore
-    plt.title("Phonon Dispersion Relation for 1D Chain")  # type: ignore
-    plt.grid(True)  # type: ignore
-    plt.legend()  # type: ignore
+    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")
+    plt.xlabel("Wave vector q")
+    plt.ylabel("Frequency ω(q)")
+    plt.title("Phonon Dispersion Relation for 1D Chain")
+    plt.grid(True)
+    plt.legend()
     plt.tight_layout()
     plot_file = output_file.rsplit(".", 1)[0] + "_plot.png"
-    plt.savefig(plot_file)  # type: ignore
+    plt.savefig(plot_file)
     print(f"Plot saved to '{plot_file}'.")
-    plt.show()  # type: ignore
+    plt.show()
