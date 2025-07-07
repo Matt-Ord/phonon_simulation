@@ -9,7 +9,7 @@ from phonon_simulation.normal_modes import (
 
 one_d_chain = System(
     lattice_constant=(1.0, 0.0, 0.0),
-    number_of_repeats=(37, 1, 1),
+    number_of_repeats=(38, 1, 1),
     spring_constant=(1.0, 0.0, 0.0),
     mass=1.0,
 )

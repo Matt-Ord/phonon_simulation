@@ -79,19 +79,9 @@ def calculate_normal_modes(system: System) -> NormalModeResults:
     }
 
 
-<<<<<<< HEAD
 def plot_dispersion(q_vals: np.ndarray, dispersion: np.ndarray, system: System) -> None:
     """Plot the phonon dispersion relation for a 1D chain on a graph."""
     system.lattice_constant[0]
-=======
-    # Save to file
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.writelines(output)
-
-    print(f"Output saved to '{output_file}'.")
-    # I had to write type: ignore to avoid type errors in the following lines from plt.something. Not sure why but it works with or without the type: ignore comments.
-    # Plotting the dispersion relation
->>>>>>> 9e2e20e4b22d0c03748246a23da7f322ba6b2966
     plt.figure(figsize=(6, 4))
     plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")
     plt.axvline(
@@ -104,7 +94,6 @@ def plot_dispersion(q_vals: np.ndarray, dispersion: np.ndarray, system: System) 
     plt.xlabel("Wave vector q")
     plt.ylabel("Frequency ω(q)")
     plt.title("Phonon Dispersion Relation for 1D Chain")
-<<<<<<< HEAD
     plt.grid(visible=True)
     plt.legend()
     plt.tight_layout()
@@ -138,12 +127,4 @@ def save_results(results: NormalModeResults, folder: str) -> None:
         f.writelines(output)
 
     plt.savefig(plot_file)
-=======
-    plt.grid(True)
-    plt.legend()
-    plt.tight_layout()
-    plot_file = output_file.rsplit(".", 1)[0] + "_plot.png"
-    plt.savefig(plot_file)
-    print(f"Plot saved to '{plot_file}'.")
->>>>>>> 9e2e20e4b22d0c03748246a23da7f322ba6b2966
     plt.show()
