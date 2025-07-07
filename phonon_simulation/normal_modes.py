@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
-from typing_extensions import TypedDict
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
-@dataclass
+@dataclass(kw_only=True, frozen=True)
 class System:
     """
     Represents a 1D, 2D, or 3D lattice system for phonon calculations.
@@ -24,24 +29,32 @@ class System:
     mass: float
 
 
-class NormalModeResults(TypedDict):
-    """
-    Results of normal mode calculations for a phonon system.
-
-    Attributes
-    ----------
-    system : System
-        The physical system outputs from normal mode calculations.
-    """
+@dataclass(kw_only=True, frozen=True)
+class NormalModeResult:
+    """Result of a normal mode calculation for a phonon system."""
 
     system: System
-    omega: np.ndarray
-    modes: np.ndarray
-    q_vals: np.ndarray
-    dispersion: np.ndarray
+    omega: np.ndarray[Any, np.dtype[np.floating]]
+    modes: np.ndarray[Any, np.dtype[np.floating]]
+    q_vals: np.ndarray[Any, np.dtype[np.floating]]
+    dispersion: np.ndarray[Any, np.dtype[np.floating]]
+
+    def to_human_readable(self) -> str:
+        """Convert the result to a text representation."""
+        return (
+            f"Calculating normal modes for system: {self.system}\n"
+            "Normal mode frequencies (omega):\n"
+            f"{np.array2string(self.omega, precision=6, separator=', ')}\n"
+            "Wave vectors (q):\n"
+            f"{np.array2string(self.q_vals, precision=6, separator=', ')}\n"
+            "Dispersion relation omega(q):\n"
+            f"{np.array2string(self.dispersion, precision=6, separator=', ')}\n"
+            "Normal modes (eigenvectors):\n"
+            f"{np.array2string(self.modes, precision=6, separator=', ')}\n"
+        )
 
 
-def calculate_normal_modes(system: System) -> NormalModeResults:
+def calculate_normal_modes(system: System) -> NormalModeResult:
     """
     Calculate and plot the normal modes and phonon dispersion relation for a simple 1D chain system.
 
@@ -66,65 +79,44 @@ def calculate_normal_modes(system: System) -> NormalModeResults:
 
     omega2, modes = np.linalg.eigh(d)
     omega = np.sqrt(np.abs(omega2))
-    q_vals = 2 * np.pi * np.arange(n) / (n * system.lattice_constant[0])
+    q_vals = np.fft.fftfreq(n, d=system.lattice_constant[0] / (2 * np.pi))
     dispersion = np.sqrt(
         (2 * k / m) * (1 - np.cos(q_vals * system.lattice_constant[0]))
     )
-    return {
-        "system": system,
-        "omega": omega,
-        "modes": modes,
-        "q_vals": q_vals,
-        "dispersion": dispersion,
-    }
+    return NormalModeResult(
+        system=system,
+        omega=omega,
+        modes=modes,
+        q_vals=q_vals,
+        dispersion=dispersion,
+    )
 
 
-def plot_dispersion(q_vals: np.ndarray, dispersion: np.ndarray, system: System) -> None:
+def plot_dispersion(modes: NormalModeResult) -> tuple[Figure, Axes]:
     """Plot the phonon dispersion relation for a 1D chain on a graph."""
-    system.lattice_constant[0]
-    plt.figure(figsize=(6, 4))
-    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")
-    plt.axvline(
-        np.pi / system.lattice_constant[0],
+    fig, ax = plt.subplots(figsize=(6, 4))
+    ax.plot(
+        np.fft.ifftshift(modes.q_vals),
+        np.fft.ifftshift(modes.dispersion),
+        "o-",
+        label="Dispersion relation",
+    )
+    ax.axvline(
+        np.pi / modes.system.lattice_constant[0],
         color="r",
         linestyle="--",
         label="BZ boundary",
     )
-    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")
-    plt.xlabel("Wave vector q")
-    plt.ylabel("Frequency ω(q)")
-    plt.title("Phonon Dispersion Relation for 1D Chain")
-    plt.grid(visible=True)
-    plt.legend()
-    plt.tight_layout()
+    ax.axvline(-np.pi / modes.system.lattice_constant[0], color="r", linestyle="--")
+    ax.set_xlabel("Wave vector q")
+    ax.set_ylabel("Frequency ω(q)")
+    ax.set_title("Phonon Dispersion Relation for 1D Chain")
+    ax.grid(visible=True)
+    ax.legend()
+    fig.tight_layout()
+    return fig, ax
 
 
-def save_results(results: NormalModeResults, folder: str) -> None:
+def save_results(results: NormalModeResult, file: Path) -> None:
     """Save the results of normal mode calculations and the plot to a specified folder."""
-    system = results["system"]
-    file_name = (
-        f"1D_N{system.number_of_repeats[0]}"
-        f"_a{system.lattice_constant[0]}"
-        f"_k{system.spring_constant[0]}"
-        f"_m{system.mass}"
-    )
-    output_file = Path(folder) / f"{file_name}.txt"
-    plot_file = Path(folder) / f"{file_name}_plot.png"
-
-    output = [
-        f"Calculating normal modes for system: {system}\n",
-        "Normal mode frequencies (omega):\n",
-        np.array2string(results["omega"], precision=6, separator=", ") + "\n",
-        "Wave vectors (q):\n",
-        np.array2string(results["q_vals"], precision=6, separator=", ") + "\n",
-        "Dispersion relation omega(q):\n",
-        np.array2string(results["dispersion"], precision=6, separator=", ") + "\n",
-        "Normal modes (eigenvectors):\n",
-        np.array2string(results["modes"], precision=6, separator=", ") + "\n",
-    ]
-
-    with output_file.open("w", encoding="utf-8") as f:
-        f.writelines(output)
-
-    plt.savefig(plot_file)
-    plt.show()
+    file.write_text(results.to_human_readable(), encoding="utf-8")
