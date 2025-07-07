@@ -4,9 +4,7 @@ version = "0.0.1"
 description = "Analysis of Phonons, using Phonopy and Wannier Interpolation"
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
-dependencies = [
-    "phonopy>=2.41.1",
-]
+dependencies = ["matplotlib>=3.10.3", "numpy>=2.3.1", "phonopy>=2.41.1"]
 
 [dependency-groups]
 dev = [
@@ -72,6 +70,7 @@ testpaths = ["tests"]
 
 [tool.pyright]
 typeCheckingMode = "strict"
+reportUnknownMemberType = false
 include = ["tests", "phonon_simulation", "examples"]
 reportImplicitOverride = true
 

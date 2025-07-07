@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from typing_extensions import TypedDict
 
 
 @dataclass
@@ -22,9 +24,24 @@ class System:
     mass: float
 
 
-def calculate_normal_modes(
-    system: System, output_file: str = "normal_modes_output.txt"
-) -> None:
+class NormalModeResults(TypedDict):
+    """
+    Results of normal mode calculations for a phonon system.
+
+    Attributes
+    ----------
+    system : System
+        The physical system outputs from normal mode calculations.
+    """
+
+    system: System
+    omega: np.ndarray
+    modes: np.ndarray
+    q_vals: np.ndarray
+    dispersion: np.ndarray
+
+
+def calculate_normal_modes(system: System) -> NormalModeResults:
     """
     Calculate and plot the normal modes and phonon dispersion relation for a simple 1D chain system.
 
@@ -33,8 +50,8 @@ def calculate_normal_modes(
     system : System
         The physical system containing lattice constant, number of repeats, spring constants, and mass of particles.
 
-    This function prints the normal mode frequencies, eigenvectors, wave vectors, and dispersion relation,
-    and displays a plot dispersion relation.
+    This function returns a dictionary containing the normal mode frequencies, eigenvectors
+    (modes), wave vectors, and dispersion relation.
     """
     n = system.number_of_repeats[0]
     system.lattice_constant[0]
@@ -53,47 +70,61 @@ def calculate_normal_modes(
     dispersion = np.sqrt(
         (2 * k / m) * (1 - np.cos(q_vals * system.lattice_constant[0]))
     )
-    # Prepare output string
-    # Generate output file name from input parameters if not provided
+    return {
+        "system": system,
+        "omega": omega,
+        "modes": modes,
+        "q_vals": q_vals,
+        "dispersion": dispersion,
+    }
 
-    output = []
-    output.extend(
-        [
-            f"Calculating normal modes for system: {system}\n",
-            "Normal mode frequencies (omega):\n",
-            np.array2string(omega, precision=6, separator=", ") + "\n",
-            "Normal modes (eigenvectors):\n",
-            np.array2string(modes, precision=6, separator=", ") + "\n",
-            "Wave vectors (q):\n",
-            np.array2string(q_vals, precision=6, separator=", ") + "\n",
-            "Dispersion relation omega(q):\n",
-            np.array2string(dispersion, precision=6, separator=", ") + "\n",
-        ]
-    )
 
-    # Save to file
-    with open(output_file, "w", encoding="utf-8") as f:
-        f.writelines(output)
-
-    print(f"Output saved to '{output_file}'.")
-    # I had to write type: ignore to avoid type errors in the following lines from plt.something. Not sure why but it works with or without the type: ignore comments.
-    # Plotting the dispersion relation
-    plt.figure(figsize=(6, 4))  # type: ignore
-    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")  # type: ignore
-    plt.axvline(  # type: ignore
+def plot_dispersion(q_vals: np.ndarray, dispersion: np.ndarray, system: System) -> None:
+    """Plot the phonon dispersion relation for a 1D chain on a graph."""
+    system.lattice_constant[0]
+    plt.figure(figsize=(6, 4))
+    plt.plot(q_vals, dispersion, "o-", label="Dispersion relation")
+    plt.axvline(
         np.pi / system.lattice_constant[0],
         color="r",
         linestyle="--",
         label="BZ boundary",
     )
-    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")  # type: ignore
-    plt.xlabel("Wave vector q")  # type: ignore
-    plt.ylabel("Frequency ω(q)")  # type: ignore
-    plt.title("Phonon Dispersion Relation for 1D Chain")  # type: ignore
-    plt.grid(True)  # type: ignore
-    plt.legend()  # type: ignore
+    plt.axvline(-np.pi / system.lattice_constant[0], color="r", linestyle="--")
+    plt.xlabel("Wave vector q")
+    plt.ylabel("Frequency ω(q)")
+    plt.title("Phonon Dispersion Relation for 1D Chain")
+    plt.grid(visible=True)
+    plt.legend()
     plt.tight_layout()
-    plot_file = output_file.rsplit(".", 1)[0] + "_plot.png"
-    plt.savefig(plot_file)  # type: ignore
-    print(f"Plot saved to '{plot_file}'.")
-    plt.show()  # type: ignore
+
+
+def save_results(results: NormalModeResults, folder: str) -> None:
+    """Save the results of normal mode calculations and the plot to a specified folder."""
+    system = results["system"]
+    file_name = (
+        f"1D_N{system.number_of_repeats[0]}"
+        f"_a{system.lattice_constant[0]}"
+        f"_k{system.spring_constant[0]}"
+        f"_m{system.mass}"
+    )
+    output_file = Path(folder) / f"{file_name}.txt"
+    plot_file = Path(folder) / f"{file_name}_plot.png"
+
+    output = [
+        f"Calculating normal modes for system: {system}\n",
+        "Normal mode frequencies (omega):\n",
+        np.array2string(results["omega"], precision=6, separator=", ") + "\n",
+        "Wave vectors (q):\n",
+        np.array2string(results["q_vals"], precision=6, separator=", ") + "\n",
+        "Dispersion relation omega(q):\n",
+        np.array2string(results["dispersion"], precision=6, separator=", ") + "\n",
+        "Normal modes (eigenvectors):\n",
+        np.array2string(results["modes"], precision=6, separator=", ") + "\n",
+    ]
+
+    with output_file.open("w", encoding="utf-8") as f:
+        f.writelines(output)
+
+    plt.savefig(plot_file)
+    plt.show()
