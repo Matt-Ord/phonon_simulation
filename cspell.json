@@ -18,7 +18,9 @@
         "eigh",
         "axvline",
         "xlabel",
-        "ylabel"
+        "ylabel",
+        "fftfreq",
+        "ifftshift"
     ],
     "flagWords": [
         "hte",

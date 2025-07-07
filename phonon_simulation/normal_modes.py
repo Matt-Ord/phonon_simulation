@@ -7,8 +7,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
 
@@ -115,8 +113,3 @@ def plot_dispersion(modes: NormalModeResult) -> tuple[Figure, Axes]:
     ax.legend()
     fig.tight_layout()
     return fig, ax
-
-
-def save_results(results: NormalModeResult, file: Path) -> None:
-    """Save the results of normal mode calculations and the plot to a specified folder."""
-    file.write_text(results.to_human_readable(), encoding="utf-8")
