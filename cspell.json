@@ -20,7 +20,10 @@
         "xlabel",
         "ylabel",
         "fftfreq",
-        "ifftshift"
+        "ifftshift",
+        "venv",
+        "pycache",
+        "xlim"
     ],
     "flagWords": [
         "hte",
