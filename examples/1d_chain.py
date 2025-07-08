@@ -23,7 +23,7 @@ if __name__ == "__main__":
     modes = calculate_normal_modes(chain)
 
     # Save results and plot to a folder
-    folder = Path(r"./examples")
+    folder = Path("./examples")
     modes_output = folder / "1d_chain.normal_modes.txt"
     modes_output.write_text(modes.to_human_readable(), encoding="utf-8")
 
