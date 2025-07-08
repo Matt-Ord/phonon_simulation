@@ -13,16 +13,10 @@ if TYPE_CHECKING:
 
 @dataclass(kw_only=True, frozen=True)
 class System:
-    """
-    Represents a 1D, 2D, or 3D lattice system for phonon calculations.
-
-    Attributes
-    ----------
-    The physical system containing lattice constant, number of repeats, spring constants, and mass of particles.
-    """
+    """Represents a lattice system used for phonon calculations."""
 
     lattice_constant: tuple[float, float, float]
-    number_of_repeats: tuple[int, int, int]
+    n_repeats: tuple[int, int, int]
     spring_constant: tuple[float, float, float]
     mass: float
 
@@ -56,16 +50,16 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
     """
     Calculate and plot the normal modes and phonon dispersion relation for a simple 1D chain system.
 
+    This function returns a `NormalModeResult` containing the normal mode frequencies, eigenvectors
+    (modes), wave vectors, and dispersion.
+
     Parameters
     ----------
     system : System
         The physical system containing lattice constant, number of repeats, spring constants, and mass of particles.
 
-    This function returns a dictionary containing the normal mode frequencies, eigenvectors
-    (modes), wave vectors, and dispersion relation.
     """
-    n = system.number_of_repeats[0]
-    system.lattice_constant[0]
+    n = system.n_repeats[0]
     k = system.spring_constant[0]
     m = system.mass
     d = np.zeros((n, n))
@@ -99,16 +93,13 @@ def plot_dispersion(modes: NormalModeResult) -> tuple[Figure, Axes]:
         "o-",
         label="Dispersion relation",
     )
-    ax.axvline(
+    ax.set_xlim(
+        -np.pi / modes.system.lattice_constant[0],
         np.pi / modes.system.lattice_constant[0],
-        color="r",
-        linestyle="--",
-        label="BZ boundary",
     )
-    ax.axvline(-np.pi / modes.system.lattice_constant[0], color="r", linestyle="--")
-    ax.set_xlabel("Wave vector q")
-    ax.set_ylabel("Frequency ω(q)")
-    ax.set_title("Phonon Dispersion Relation for 1D Chain")
+    ax.set_xlabel("Wave vector $q$")
+    ax.set_ylabel("Frequency $\\omega(q)$")
+    ax.set_title("Phonon Dispersion Relation")
     ax.grid(visible=True)
     ax.legend()
     fig.tight_layout()

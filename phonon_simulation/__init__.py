@@ -3,3 +3,4 @@
 from __future__ import annotations
 
 PHONONS_ARE_COOL = True
+"""A statement about phonons."""
