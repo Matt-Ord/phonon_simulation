@@ -13,7 +13,6 @@
         "pydocstyle",
         "numpy",
         "isort",
-        "isort",
         "ndarray",
         "eigh",
         "axvline",
