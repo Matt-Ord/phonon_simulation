@@ -69,12 +69,20 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
         d[i, (i - 1) % n] = -k / m
         d[i, (i + 1) % n] = -k / m
 
-    omega2, modes = np.linalg.eigh(d)
+    omega2, modes = np.linalg.eigh(
+        d
+    )  # Produces eigenvalues in ascending order so produces pairs. These pairs are split up later
     omega = np.sqrt(np.abs(omega2))
-    q_vals = np.fft.fftfreq(n, d=system.lattice_constant[0] / (2 * np.pi))
-    dispersion = np.sqrt(
-        (2 * k / m) * (1 - np.cos(q_vals * system.lattice_constant[0]))
-    )
+    q_vals = np.linspace(-0.5, 0.5, n, endpoint=False)
+
+    q_analytical: np.ndarray = np.linspace(-0.5, 0.5, 10000)
+    dispersion = np.sqrt((4 * k / m) * (np.sin(np.pi * q_analytical) ** 2))
+    # Sort the eigenvalues and eigenvectors based on q_vals rather than omega size
+    omega_even = omega[::2]
+    omega_odd = omega[1::2]
+    omega_odd_reversed = omega_odd[::-1]
+    omega = np.concatenate([omega_odd_reversed, omega_even])
+
     return NormalModeResult(
         system=system,
         omega=omega,
@@ -86,18 +94,29 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
 
 def plot_dispersion(modes: NormalModeResult) -> tuple[Figure, Axes]:
     """Plot the phonon dispersion relation for a 1D chain on a graph."""
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(8, 6))
+    q_analytical: np.ndarray = np.linspace(-0.5, 0.5, 10000)
     ax.plot(
-        np.fft.ifftshift(modes.q_vals),
-        np.fft.ifftshift(modes.dispersion),
-        "o-",
+        modes.q_vals,
+        modes.omega,
+        "o",
+        label="Numerical",
+    )
+    ax.plot(
+        q_analytical,
+        modes.dispersion,
+        "-",
         label="Dispersion relation",
     )
     ax.set_xlim(
-        -np.pi / modes.system.lattice_constant[0],
-        np.pi / modes.system.lattice_constant[0],
+        -0.6,
+        0.6,
     )
-    ax.set_xlabel("Wave vector $q$")
+    ax.axvline(0.5, color="gray", linestyle="--", label="First BZ boundary")
+    ax.axvline(-0.5, color="gray", linestyle="--")
+    ax.axhline(0, color="k", linestyle="-")
+    ax.axvline(0, color="k", linestyle="-")
+    ax.set_xlabel("Wave vector $q$ (Reduced units)")
     ax.set_ylabel("Frequency $\\omega(q)$")
     ax.set_title("Phonon Dispersion Relation")
     ax.grid(visible=True)
