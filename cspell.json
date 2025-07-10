@@ -12,7 +12,17 @@
         "pylint",
         "pydocstyle",
         "numpy",
-        "isort"
+        "isort",
+        "ndarray",
+        "eigh",
+        "axvline",
+        "xlabel",
+        "ylabel",
+        "fftfreq",
+        "ifftshift",
+        "venv",
+        "pycache",
+        "xlim"
     ],
     "flagWords": [
         "hte",
