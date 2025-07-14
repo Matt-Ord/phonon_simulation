@@ -5,20 +5,28 @@ from typing import TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 import numpy as np
+from phonopy.api_phonopy import Phonopy
+from phonopy.physical_units import get_physical_units
+from phonopy.structure.atoms import PhonopyAtoms
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
+
+EV = get_physical_units().EV
+Angstrom = get_physical_units().Angstrom
+AMU = get_physical_units().AMU
+VaspToOmega = np.sqrt(EV / AMU) / Angstrom
 
 
 @dataclass(kw_only=True, frozen=True)
 class System:
     """Represents a lattice system used for phonon calculations."""
 
+    element: str
     lattice_constant: tuple[float, float, float]
     n_repeats: tuple[int, int, int]
     spring_constant: tuple[float, float, float]
-    mass: float
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -29,7 +37,7 @@ class NormalModeResult:
     omega: np.ndarray[Any, np.dtype[np.floating]]
     modes: np.ndarray[Any, np.dtype[np.floating]]
     q_vals: np.ndarray[Any, np.dtype[np.floating]]
-    dispersion: np.ndarray[Any, np.dtype[np.floating]]
+    mass: float
 
     def to_human_readable(self) -> str:
         """Convert the result to a text representation."""
@@ -39,8 +47,6 @@ class NormalModeResult:
             f"{np.array2string(self.omega, precision=6, separator=', ')}\n"
             "Wave vectors (q):\n"
             f"{np.array2string(self.q_vals, precision=6, separator=', ')}\n"
-            "Dispersion relation omega(q):\n"
-            f"{np.array2string(self.dispersion, precision=6, separator=', ')}\n"
             "Normal modes (eigenvectors):\n"
             f"{np.array2string(self.modes, precision=6, separator=', ')}\n"
         )
@@ -50,68 +56,65 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
     """
     Calculate and plot the normal modes and phonon dispersion relation for a simple 1D chain system.
 
-    This function returns a `NormalModeResult` containing the normal mode frequencies, eigenvectors
-    (modes), wave vectors, and dispersion.
-
-    Parameters
-    ----------
-    system : System
-        The physical system containing lattice constant, number of repeats, spring constants, and mass of particles.
-
+    Returns a NormalModeResult containing frequencies, eigenvectors, and reduced wave vectors.
     """
-    n = system.n_repeats[0]
-    k = system.spring_constant[0]
-    m = system.mass
-    d = np.zeros((n, n))
+    cell: PhonopyAtoms = PhonopyAtoms(
+        symbols=[system.element],
+        cell=[
+            [system.lattice_constant[0], 0, 0],
+            [0, system.lattice_constant[1], 0],
+            [0, 0, system.lattice_constant[2]],
+        ],
+        scaled_positions=[[0, 0, 0]],
+    )
+    supercell_matrix: list[list[int]] = [
+        [system.n_repeats[0], 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+    ]
+    phonon: Phonopy = Phonopy(unitcell=cell, supercell_matrix=supercell_matrix)
+    num_atoms: int = len(phonon.supercell)
+    fc: np.ndarray = np.zeros((num_atoms, num_atoms, 3, 3), dtype=float)
+    mass = cell.masses[0]
+    # Set up force constants for 1D monoatomic chain
+    for i in range(num_atoms):
+        fc[i, i, 0, 0] = 2 * system.spring_constant[0]
+        fc[i, (i - 1) % num_atoms, 0, 0] = -system.spring_constant[0]
+        fc[i, (i + 1) % num_atoms, 0, 0] = -system.spring_constant[0]
 
-    for i in range(n):
-        d[i, i] = 2 * k / m
-        d[i, (i - 1) % n] = -k / m
-        d[i, (i + 1) % n] = -k / m
-
-    omega2, modes = np.linalg.eigh(
-        d
-    )  # Produces eigenvalues in ascending order so produces pairs. These pairs are split up later
-    omega = np.sqrt(np.abs(omega2))
-    q_vals = np.linspace(-0.5, 0.5, n, endpoint=False)
-
-    q_analytical: np.ndarray = np.linspace(-0.5, 0.5, 10000)
-    dispersion = np.sqrt((4 * k / m) * (np.sin(np.pi * q_analytical) ** 2))
-    # Sort the eigenvalues and eigenvectors based on q_vals rather than omega size
-    omega_even = omega[::2]
-    omega_odd = omega[1::2]
-    omega_odd_reversed = omega_odd[::-1]
-    omega = np.concatenate([omega_odd_reversed, omega_even])
-
+    phonon.force_constants = fc
+    mesh: tuple[int, int, int] = (101, 1, 1)
+    phonon.run_mesh(mesh, with_eigenvectors=True, is_mesh_symmetry=False)
+    mesh_dict: dict[str, np.ndarray] = phonon.get_mesh_dict()
+    q_vals: np.ndarray = mesh_dict["qpoints"][:, 0]
+    frequencies: np.ndarray = mesh_dict["frequencies"][:, 2]
+    omega: np.ndarray = mesh_dict["frequencies"] * 1e12 * 2 * np.pi
+    sorted_indices = np.argsort(q_vals)
+    q_vals = q_vals[sorted_indices]
+    frequencies = frequencies[sorted_indices]
+    eigenvectors: np.ndarray = mesh_dict["eigenvectors"][sorted_indices]
+    omega = omega[sorted_indices]
+    modes = eigenvectors[..., 0]
     return NormalModeResult(
         system=system,
         omega=omega,
         modes=modes,
         q_vals=q_vals,
-        dispersion=dispersion,
+        mass=mass,
     )
 
 
 def plot_dispersion(modes: NormalModeResult) -> tuple[Figure, Axes]:
-    """Plot the phonon dispersion relation for a 1D chain on a graph."""
+    """Plot the phonon dispersion relation for a 1D chain on a graph, including analytical curve."""
     fig, ax = plt.subplots(figsize=(8, 6))
-    q_analytical: np.ndarray = np.linspace(-0.5, 0.5, 10000)
+    # Numerical result from phonon simulation
     ax.plot(
         modes.q_vals,
         modes.omega,
         "o",
         label="Numerical",
     )
-    ax.plot(
-        q_analytical,
-        modes.dispersion,
-        "-",
-        label="Dispersion relation",
-    )
-    ax.set_xlim(
-        -0.6,
-        0.6,
-    )
+    ax.set_xlim(-0.6, 0.6)
     ax.axvline(0.5, color="gray", linestyle="--", label="First BZ boundary")
     ax.axvline(-0.5, color="gray", linestyle="--")
     ax.axhline(0, color="k", linestyle="-")
