@@ -14,7 +14,7 @@ if __name__ == "__main__":
     chain = System(
         element="Si",
         lattice_constant=(1, 1, 1),
-        n_repeats=(100, 1, 1),
+        n_repeats=(101, 1, 1),
         spring_constant=(1, 0.0, 0.0),
     )
 
