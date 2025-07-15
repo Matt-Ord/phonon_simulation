@@ -22,7 +22,10 @@
         "ifftshift",
         "venv",
         "pycache",
-        "xlim"
+        "xlim",
+        "VASP",
+        "rtol",
+        "axhline"
     ],
     "flagWords": [
         "hte",

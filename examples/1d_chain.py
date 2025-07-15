@@ -11,13 +11,11 @@ from phonon_simulation.normal_modes import (
 )
 
 if __name__ == "__main__":
-    # An example of simulating a simple 1D chain of atoms
-    # To simulate a 1D system we set the lattice constant along the y/z directions to zero
     chain = System(
-        lattice_constant=(1.0, 0.0, 0.0),
-        n_repeats=(38, 1, 1),
-        spring_constant=(1.0, 0.0, 0.0),
-        mass=1.0,
+        element="Si",
+        lattice_constant=(1, 1, 1),
+        n_repeats=(101, 1, 1),
+        spring_constant=(1, 0.0, 0.0),
     )
 
     modes = calculate_normal_modes(chain)
