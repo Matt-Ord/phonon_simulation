@@ -96,12 +96,12 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
     phonon.run_mesh(system.n_repeats, with_eigenvectors=True, is_mesh_symmetry=False)  # type: ignore[call-arg]
     mesh_dict: dict[str, np.ndarray] = phonon.get_mesh_dict()  # type: ignore[return-value]
 
-    sorted_indices = np.argsort(mesh_dict["qpoints"][:, 0])
+    sorted_indices = np.argsort(mesh_dict["qpoints"][:, 0])  # cspell: disable-line
     return NormalModeResult(
         system=system,
         omega=mesh_dict["frequencies"][sorted_indices] * 1e12 * 2 * np.pi,
         modes=mesh_dict["eigenvectors"][sorted_indices][..., 0],
-        q_vals=mesh_dict["qpoints"][sorted_indices, 0],
+        q_vals=mesh_dict["qpoints"][sorted_indices, 0],  # cspell: disable-line
     )
 
 
