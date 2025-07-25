@@ -117,7 +117,7 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
         system=system,
         omega=mesh_dict["frequencies"][sorted_indices] * 1e12 * 2 * np.pi,
         modes=mesh_dict["eigenvectors"][sorted_indices][..., 0],
-        q_vals=mesh_dict["qpoints"][sorted_indices, 0],  # cspell: disable-line
+        q_vals=mesh_dict["qpoints"][sorted_indices, 0],
     )
 
 
@@ -231,7 +231,7 @@ class System2D:
         return cell.masses[0]
 
 
-class squaresystem2d(System2D):
+class SquareSystem2D(System2D):
     """A class to represent a 2D square lattice system for phonon calculations."""
 
     def __init__(
