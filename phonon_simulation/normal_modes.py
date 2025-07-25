@@ -6,17 +6,11 @@ from typing import TYPE_CHECKING, Any
 import matplotlib.pyplot as plt
 import numpy as np
 from phonopy.api_phonopy import Phonopy
-from phonopy.physical_units import get_physical_units
 from phonopy.structure.atoms import PhonopyAtoms  # type: ignore[import]
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
-
-EV = get_physical_units().EV
-Angstrom = get_physical_units().Angstrom
-AMU = get_physical_units().AMU
-VaspToOmega = np.sqrt(EV / AMU) / Angstrom
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -24,7 +18,7 @@ class System:
     """Represents a lattice system used for phonon calculations."""
 
     element: str
-    lattice_constant: tuple[float, float, float]
+    cell: np.ndarray[tuple[int, int], np.dtype[np.floating]]
     n_repeats: tuple[int, int, int]
     spring_constant: tuple[float, float, float]
 
@@ -33,7 +27,7 @@ class System:
         """Mass of the element in atomic mass units."""
         cell = PhonopyAtoms(
             symbols=[self.element],
-            cell=np.diag(self.lattice_constant),
+            cell=self.cell,
             scaled_positions=[[0, 0, 0]],
         )
         return cell.masses[0]
@@ -102,7 +96,7 @@ def calculate_normal_modes(system: System) -> NormalModeResult:
     """
     cell = PhonopyAtoms(
         symbols=[system.element],
-        cell=np.diag(system.lattice_constant),
+        cell=system.cell,
         scaled_positions=[[0, 0, 0]],
     )
     supercell_matrix = np.diag(system.n_repeats)

@@ -14,7 +14,7 @@ from phonon_simulation.normal_modes import (
 if __name__ == "__main__":
     chain = System(
         element="Au",
-        lattice_constant=(1, 1, 1),
+        cell=np.diag([1.0, 1.0, 1.0]),
         n_repeats=(21, 1, 1),
         spring_constant=(1, 1.0, 0.0),
     )
@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # Optionally, plot the atomic positions in the supercell (1D chain)
 
     n_atoms = chain.n_repeats[0]
-    a = chain.lattice_constant[0]
+    a = chain.cell[0, 0]
     positions = np.array([[i * a, 0, 0] for i in range(n_atoms)])
     fig_supercell, ax = plt.subplots()
     ax.scatter(positions[:, 0], positions[:, 1], s=50, c="blue")

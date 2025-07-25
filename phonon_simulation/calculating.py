@@ -166,8 +166,8 @@ def build_force_constants_2d(
     return fc
 
 
-@dataclass(frozen=True)
-class Path2D:
+@dataclass(frozen=True, kw_only=True)
+class DispersionPath:
     """
     Represents a path in reciprocal space for 2D phonon calculations.
 
@@ -184,13 +184,13 @@ class Path2D:
         Validates that the number of labels matches the number of path points.
     """
 
-    path_points: np.ndarray  # shape (N, 3)
+    points: np.ndarray[tuple[int, int], np.dtype[np.floating]]
     labels: list[str]
 
     def __post_init__(self) -> None:
-        if len(self.labels) != len(self.path_points):
-            msg = f"Number of labels ({len(self.labels)}) does not match number of path points ({len(self.path_points)})"
-            raise ValueError(msg)
+        assert self.points.shape == (len(self.points), 3), (
+            f"Path points must be a 2D array with shape (N, 3), got {self.points.shape}"
+        )
 
 
 def calculate_2d__modes(
