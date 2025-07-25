@@ -6,21 +6,21 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from phonon_simulation.calculating import (
+    DispersionPath,
     Lattice2DSystem,
-    Path2D,
     calculate_2d__lattice_bonds,
     calculate_2d__modes,
 )
 from phonon_simulation.plotting import (
-    plot_2d__bz_path,
     plot_2d__dispersion,
     plot_2d__lattice,
+    plot_dispersion_path,
 )
 
 start_time = time.time()
 
-path_obj = Path2D(
-    path_points=np.array(
+path = DispersionPath(
+    points=np.array(
         [
             [0.0, 0.0, 0.0],
             [0.5, 0.0, 0.0],
@@ -42,14 +42,13 @@ system = Lattice2DSystem(
 )
 
 mesh_dict, result = calculate_2d__modes(system)
-plot_2d__bz_path(path_obj.path_points, path_obj.labels)
+fig, ax = plot_dispersion_path(path)
+fig.show()
 
 bonds = calculate_2d__lattice_bonds(result, system)
 plot_2d__lattice(result, system, bonds)
 
-plot_2d__dispersion(
-    mesh_dict, result.get_phonon(), system, path_obj.path_points, path_obj.labels
-)
+plot_2d__dispersion(mesh_dict, result.get_phonon(), system, path.points, path.labels)
 
 
 print(

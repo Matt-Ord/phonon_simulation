@@ -10,7 +10,11 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from phonopy.api_phonopy import Phonopy
 
-    from phonon_simulation.calculating import Lattice2DSystem, PhononSystem2DResult
+    from phonon_simulation.calculating import (
+        DispersionPath,
+        Lattice2DSystem,
+        PhononSystem2DResult,
+    )
 
 
 def plot_2d__dispersion(
@@ -101,7 +105,47 @@ def plot_2d__dispersion(
     return fig, ax
 
 
-def plot_2d__bz_path(path: np.ndarray, labels: list[str]) -> tuple[Figure, Axes]:
+def _plot_dispersion_path_lines(
+    path: DispersionPath, axis: tuple[int, int] = (0, 1), *, ax: Axes
+) -> None:
+    (line,) = ax.plot(path.points[:, axis[0]], path.points[:, axis[1]], "k-", lw=2)
+    line.set_marker("o")
+    line.set_markerfacecolor("r")
+    line.set_markeredgecolor("r")
+
+    arrowprops = {
+        "arrowstyle": "->",
+        "color": "k",
+        "lw": 1.5,
+        "shrinkA": 0,
+        "shrinkB": 0,
+    }
+    # Add arrows between points
+    midpoints = (path.points[:-1] + path.points[1:]) / 2
+    startpoints = (path.points[:-1] + midpoints) / 2
+    for start, end in zip(startpoints, midpoints, strict=False):
+        ax.annotate(
+            "",
+            xy=end[list(axis)],
+            xytext=start[list(axis)],
+            arrowprops=arrowprops,
+        )
+
+
+def _plot_dispersion_path_labels(
+    path: DispersionPath, axis: tuple[int, int] = (0, 1), *, ax: Axes
+) -> None:
+    for label, point in zip(path.labels, path.points, strict=True):
+        x, y = point[list(axis)]
+        if x == 0 and y == 0:
+            ax.text(x - 0.05, y, label, fontsize=10, va="center", ha="right")
+        else:
+            ax.text(x + 0.05, y, label, fontsize=10, va="center", ha="center")
+
+
+def plot_dispersion_path(
+    path: DispersionPath, axis: tuple[int, int] = (0, 1)
+) -> tuple[Figure, Axes]:
     """
     Plot the first Brillouin zone (BZ) of a 2D  lattice and the high-symmetry path used for phonon dispersion calculations.
 
@@ -120,27 +164,11 @@ def plot_2d__bz_path(path: np.ndarray, labels: list[str]) -> tuple[Figure, Axes]
         The matplotlib Figure and Axes objects for the plot.
     """
     fig, ax = plt.subplots(figsize=(4, 4))
-    ax.plot(
-        [-0.5, 0.5, 0.5, -0.5, -0.5], [-0.5, -0.5, 0.5, 0.5, -0.5], "k-", lw=1
-    )  # BZ from -0.5 to 0.5 in reduced coordinates
-    ax.plot(path[:, 0], path[:, 1], "k-", lw=2)
-    arrowprops = {
-        "arrowstyle": "->",
-        "color": "k",
-        "lw": 1.5,
-        "shrinkA": 0,
-        "shrinkB": 0,
-    }
-    for i in range(len(path) - 1):
-        mid = (path[i] + path[i + 1]) / 2
-        ax.annotate("", xy=mid[:2], xytext=path[i][:2], arrowprops=arrowprops)
-    for i, pt in enumerate(path):
-        x, y = pt[0], pt[1]
-        ax.plot(x, y, "ro")
-        if labels[i] == r"$\Gamma$" and x == 0 and y == 0:
-            ax.text(x - 0.05, y, labels[i], fontsize=10, va="center", ha="right")
-        else:
-            ax.text(x + 0.05, y, labels[i], fontsize=10, va="center", ha="center")
+    # Plot a rectangle representing the first Brillouin zone
+    ax.plot([-0.5, 0.5, 0.5, -0.5, -0.5], [-0.5, -0.5, 0.5, 0.5, -0.5], "k-", lw=1)
+    _plot_dispersion_path_lines(path, axis=axis, ax=ax)
+    _plot_dispersion_path_labels(path, axis=axis, ax=ax)
+
     ax.set_xticks([-0.5, 0, 0.5])
     ax.set_xticklabels([r"$-\pi/a$", "0", r"$\pi/a$"])
     ax.set_yticks([-0.5, 0, 0.5])
