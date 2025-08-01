@@ -8,12 +8,11 @@ import numpy as np
 from phonon_simulation.calculating import (
     DispersionPath,
     Lattice2DSystem,
-    calculate_2d__lattice_bonds,
-    calculate_2d__modes,
+    calculate_2d_modes,
 )
 from phonon_simulation.plotting import (
-    plot_2d__dispersion,
-    plot_2d__lattice,
+    plot_2d_dispersion,
+    plot_2d_lattice,
     plot_dispersion_path,
 )
 
@@ -32,24 +31,22 @@ path = DispersionPath(
 )
 
 system = Lattice2DSystem(
-    element="C",
-    lattice_vector_a=(1, -1, 0.0),
-    lattice_vector_b=(1, 1, 0.0),
+    element="Si",
+    lattice_vector_a=(1, 0, 0.0),
+    lattice_vector_b=(0, 1, 0.0),
     n_repeatsa=6,
     n_repeatsb=6,
     k_nn=12.5,
-    k_nnn=6.25,
+    k_nnn=2.50,
 )
 
-mesh_dict, result = calculate_2d__modes(system)
-fig, ax = plot_dispersion_path(path)
+mesh_dict, result = calculate_2d_modes(system)
+fig, ax = plot_dispersion_path(path, system)
 fig.show()
 
-bonds = calculate_2d__lattice_bonds(result, system)
-plot_2d__lattice(result, system, bonds)
+plot_2d_lattice(result, system)
 
-plot_2d__dispersion(mesh_dict, result.get_phonon(), system, path.points, path.labels)
-
+plot_2d_dispersion(result.get_phonon(), system, path.points, path.labels)
 
 print(
     "Process finished ---%s seconds ---" % (time.time() - start_time)

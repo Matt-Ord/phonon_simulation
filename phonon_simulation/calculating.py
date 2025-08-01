@@ -106,66 +106,6 @@ class PhononSystem2DResult:
         return self.positions
 
 
-def build_force_constants_2d(
-    system: Lattice2DSystem, result: PhononSystem2DResult
-) -> np.ndarray:
-    """
-    Build the force constant matrix for a 2D lattice system including nearest and next nearest neighbor interactions.
-
-    using the atomic positions from a PhononSystem2DResult object.
-
-    Parameters
-    ----------
-    system : Lattice2DSystem
-        The 2D lattice system for which to build the force constant matrix.
-    result : PhononSystem2DResult
-        The result object containing cell, phonon, and positions.
-
-    Returns
-    -------
-    np.ndarray
-        The force constant matrix of shape (num_atoms, num_atoms, 3, 3).
-    """
-    num_atoms = system.n_repeatsa * system.n_repeatsb
-    positions = result.get_positions()
-    fc = np.zeros((num_atoms, num_atoms, 3, 3), dtype=float)
-    a_vec = np.array(system.lattice_vector_a)
-    b_vec = np.array(system.lattice_vector_b)
-    nn_bond_a = np.linalg.norm(a_vec)
-    nn_bond_b = np.linalg.norm(b_vec)
-    nnn_bond_diag1 = np.linalg.norm(a_vec + b_vec)
-    nnn_bond_diag2 = np.linalg.norm(a_vec - b_vec)
-    tol = 0.005
-
-    for i in range(num_atoms):
-        for j in range(num_atoms):
-            if i == j:
-                continue
-            vec = positions[j] - positions[i]
-            dist = np.linalg.norm(vec)
-            # Nearest-neighbor: along a_vec or b_vec
-            if np.isclose(dist, nn_bond_a, atol=tol) or np.isclose(
-                dist, nn_bond_b, atol=tol
-            ):
-                direction = vec / np.linalg.norm(vec)
-                for d1 in range(3):
-                    for d2 in range(3):
-                        fc[i, j, d1, d2] += -system.k_nn * direction[d1] * direction[d2]
-                        fc[i, i, d1, d2] += system.k_nn * direction[d1] * direction[d2]
-            # Next-nearest-neighbor: along both diagonals
-            elif np.isclose(dist, nnn_bond_diag1, atol=tol) or np.isclose(
-                dist, nnn_bond_diag2, atol=tol
-            ):
-                direction = vec / np.linalg.norm(vec)
-                for d1 in range(3):
-                    for d2 in range(3):
-                        fc[i, j, d1, d2] += (
-                            -system.k_nnn * direction[d1] * direction[d2]
-                        )
-                        fc[i, i, d1, d2] += system.k_nnn * direction[d1] * direction[d2]
-    return fc
-
-
 @dataclass(frozen=True, kw_only=True)
 class DispersionPath:
     """
@@ -193,7 +133,51 @@ class DispersionPath:
         )
 
 
-def calculate_2d__modes(
+def build_force_constants_2d(
+    system: Lattice2DSystem, result: PhononSystem2DResult
+) -> np.ndarray:
+    """
+    Build the force constant matrix for a 2D lattice system including nearest and next nearest neighbor interactions using the atomic positions from a PhononSystem2DResult object and bond pairs found in find_lattice_bond_pairs.
+
+    Parameters
+    ----------
+    system : Lattice2DSystem
+        The 2D lattice system for which to build the force constant matrix.
+    result : PhononSystem2DResult
+        The result object containing cell, phonon, and positions.
+
+    Returns
+    -------
+    np.ndarray
+        The force constant matrix of shape (num_atoms, num_atoms, 3, 3).
+    """
+    num_atoms = system.n_repeatsa * system.n_repeatsb
+    positions = result.get_positions()
+    fc = np.zeros((num_atoms, num_atoms, 3, 3), dtype=float)
+    a_vec = np.array(system.lattice_vector_a)
+    b_vec = np.array(system.lattice_vector_b)
+
+    nn_pairs, nnn_pairs = find_lattice_bond_pairs(positions, a_vec, b_vec)
+
+    for i, j in nn_pairs:  # Nearest neighbor bonds
+        displacement_vector = positions[j] - positions[i]
+        direction = displacement_vector / np.linalg.norm(displacement_vector)
+        for d1 in range(3):
+            for d2 in range(3):
+                fc[i, j, d1, d2] += -system.k_nn * direction[d1] * direction[d2]
+                fc[i, i, d1, d2] += system.k_nn * direction[d1] * direction[d2]
+
+    for i, j in nnn_pairs:  # Next-nearest neighbor bonds
+        displacement_vector = positions[j] - positions[i]
+        direction = displacement_vector / np.linalg.norm(displacement_vector)
+        for d1 in range(3):
+            for d2 in range(3):
+                fc[i, j, d1, d2] += -system.k_nnn * direction[d1] * direction[d2]
+                fc[i, i, d1, d2] += system.k_nnn * direction[d1] * direction[d2]
+    return fc
+
+
+def calculate_2d_modes(
     system: Lattice2DSystem,
 ) -> tuple[dict[str, np.ndarray], PhononSystem2DResult]:
     """
@@ -221,11 +205,13 @@ def calculate_2d__modes(
     supercell_matrix = [[system.n_repeatsa, 0, 0], [0, system.n_repeatsb, 0], [0, 0, 1]]
     phonon = Phonopy(unitcell=cell, supercell_matrix=supercell_matrix)
     positions = phonon.supercell.get_positions()
-    # Create a temporary result object to pass positions
-    temp_result = PhononSystem2DResult(cell=cell, phonon=phonon, positions=positions)
+
+    temp_result = PhononSystem2DResult(
+        cell=cell, phonon=phonon, positions=positions
+    )  # Create a temporary result object to pass positions
     fc = build_force_constants_2d(system, temp_result)
     phonon.force_constants = fc
-    mesh = (201, 201, 1)
+    mesh = (system.n_repeatsa, system.n_repeatsb, 1)
     phonon.run_mesh(
         mesh, with_eigenvectors=True, is_mesh_symmetry=False, is_gamma_center=True
     )
@@ -235,35 +221,47 @@ def calculate_2d__modes(
     return mesh_dict, result
 
 
-def calculate_2d__lattice_bonds(
-    result: PhononSystem2DResult, system: Lattice2DSystem
-) -> list[tuple[int, int, str]]:
+def find_lattice_bond_pairs(
+    positions: np.ndarray,
+    a_vec: np.ndarray,
+    b_vec: np.ndarray,
+    rtol: float = 1e-3,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
     """
-    Calculate the bonds (pairs of atom indices and bond type) for a 2D  lattice supercell only for plotting, not used for force calculations.
+    Find nearest neighbor (nn) and next-nearest neighbor (nnn) atom pairs in a 2D lattice.
 
-    Returns a list of tuples: (i, j, bond_type), where bond_type is 'nn' or 'nnn'.
+    Parameters
+    ----------
+    positions : np.ndarray
+        Array of atomic positions in the supercell.
+    a_vec : np.ndarray
+        Lattice vector along the a direction.
+    b_vec : np.ndarray
+        Lattice vector along the b direction.
+    rtol : float
+        Relative tolerance for comparing vectors.
+
+    Returns
+    -------
+    tuple[list[tuple[int, int]], list[tuple[int, int]]]
+        A tuple containing two lists: nn_pairs and nnn_pairs, each as lists of (i, j) index pairs.
     """
-    positions = result.get_positions()
-    a_vec = np.array(system.lattice_vector_a)
-    b_vec = np.array(system.lattice_vector_b)
-    nn_bond_a = np.linalg.norm(a_vec)
-    nn_bond_b = np.linalg.norm(b_vec)
-    nnn_bond_diag1 = np.linalg.norm(a_vec + b_vec)
-    nnn_bond_diag2 = np.linalg.norm(a_vec - b_vec)
-    tol = 0.05
-    bonds: list[tuple[int, int, str]] = []
+    nn_pairs: list[tuple[int, int]] = []
+    nnn_pairs: list[tuple[int, int]] = []
+
+    nnn_diag1 = a_vec + b_vec
+    nnn_diag2 = a_vec - b_vec
     for i in range(positions.shape[0]):
-        for j in range(i + 1, positions.shape[0]):
+        for j in range(positions.shape[0]):
             disp = positions[j] - positions[i]
-            dist = np.linalg.norm(disp)
-            # Nearest neighbour: along a_vec or b_vec
-            if np.isclose(dist, nn_bond_a, atol=tol) or np.isclose(
-                dist, nn_bond_b, atol=tol
+
+            if np.allclose(disp, a_vec, rtol=rtol) or np.allclose(
+                disp, b_vec, rtol=rtol
             ):
-                bonds.append((i, j, "nn"))
-            # Next nearest neighbour: along diagonals
-            elif np.isclose(dist, nnn_bond_diag1, atol=tol) or np.isclose(
-                dist, nnn_bond_diag2, atol=tol
+                nn_pairs.append((i, j))
+
+            elif np.allclose(disp, nnn_diag1, rtol=rtol) or np.allclose(
+                disp, nnn_diag2, rtol=rtol
             ):
-                bonds.append((i, j, "nnn"))
-    return bonds
+                nnn_pairs.append((i, j))
+    return nn_pairs, nnn_pairs
