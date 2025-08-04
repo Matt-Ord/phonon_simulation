@@ -6,17 +6,17 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 from phonon_simulation.normal_modes import (
-    System,
     calculate_normal_modes,
     plot_dispersion,
 )
+from phonon_simulation.system import NearestNeighbourSystem1D
 
 if __name__ == "__main__":
-    chain = System(
+    chain = NearestNeighbourSystem1D(
         element="Au",
         cell=np.diag([1.0, 1.0, 1.0]),
-        n_repeats=(21, 1, 1),
-        spring_constant=(1, 1.0, 0.0),
+        n_repeats=21,
+        spring_constant=1.0,
     )
 
     modes = calculate_normal_modes(chain)
@@ -45,3 +45,4 @@ if __name__ == "__main__":
     ax.set_title("1D Chain Supercell Structure")
     ax.grid(visible=True)
     plt.show()
+    input()

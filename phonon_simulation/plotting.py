@@ -10,20 +10,162 @@ from phonon_simulation.calculating import find_lattice_bond_pairs
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
-    from phonopy.api_phonopy import Phonopy
 
-    from phonon_simulation.calculating import (
+    from phonon_simulation.normal_modes import (
         DispersionPath,
-        Lattice2DSystem,
-        PhononSystem2DResult,
+        NormalModeDispersionResult,
+        NormalModeGrid,
     )
+    from phonon_simulation.system import System
 
 
-def plot_2d_dispersion(
-    phonon: Phonopy,
-    system: Lattice2DSystem,
-    path: np.ndarray,
-    labels: list[str],
+def plot_dispersion_1d(modes: NormalModeGrid) -> tuple[Figure, Axes]:
+    """Plot the phonon dispersion relation for a 1D chain on a graph, including analytical curve."""
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    ax.plot(modes.q_vals, modes.omega, "o", label="Numerical")
+
+    ax.set_xlim(-0.6, 0.6)
+    ax.axvline(0.5, color="gray", linestyle="--", label="First BZ boundary")
+    ax.axvline(-0.5, color="gray", linestyle="--")
+    ax.axhline(0, color="k", linestyle="-")
+    ax.axvline(0, color="k", linestyle="-")
+
+    ax.set_xlabel("Wave vector $q$ (Reduced units)")
+    ax.set_ylabel("Frequency $\\omega(q)$")
+    ax.set_title("Phonon Dispersion Relation")
+    ax.grid(visible=True)
+    ax.legend()
+    fig.tight_layout()
+    return fig, ax
+
+
+def plot_2d_square_lattice(
+    phonon, system: SquareLattice2DSystem
+) -> tuple[Figure, Axes]:
+    """
+    Plot the atomic positions and bonds of a 2D square lattice supercell, highlighting nearest and next nearest neighbor interactions.
+
+    Parameters
+    ----------
+    phonon : Phonopy
+        The Phonopy object containing the supercell information.
+    system : SquareLattice2DSystem
+        The 2D square lattice system being visualized.
+
+    Returns
+    -------
+    tuple[Figure, Axes]
+        The matplotlib Figure and Axes objects for the plot.
+    """
+    supercell: PhonopyAtoms = phonon.supercell
+    supercell_positions: np.ndarray[Any, np.dtype[np.floating]] = supercell.positions
+    fig_supercell, ax_supercell = plt.subplots()
+    ax_supercell.scatter(
+        supercell_positions[:, 0], supercell_positions[:, 1], s=50, c="black"
+    )
+    ax_supercell.set_xlabel("x (Å)")
+    ax_supercell.set_ylabel("y (Å)")
+    ax_supercell.set_title(
+        f"{system.n_repeatsx}x{system.n_repeatsy} supercell of {system.element} atoms with nearest \n and next nearest neighbour interactions"
+    )
+    ax_supercell.set_aspect("equal")
+
+    a_x: float = system.lattice_constantx
+    a_y: float = system.lattice_constanty
+    a = {"a_x": a_x, "a_y": a_y}
+    nn_bond = min(a_x, a_y)
+    nnn_bond = np.sqrt(a_x**2 + a_y**2)
+    a.get(max(a))
+    nn_label_added = False
+    nnn_label_added = False
+
+    for i in range(supercell_positions.shape[0]):
+        for j in range(i + 1, supercell_positions.shape[0]):
+            dist = np.linalg.norm(supercell_positions[i] - supercell_positions[j])
+            if 0.9 * nn_bond < dist < 1.1 * nn_bond:
+                ax_supercell.plot(
+                    [supercell_positions[i, 0], supercell_positions[j, 0]],
+                    [supercell_positions[i, 1], supercell_positions[j, 1]],
+                    color="orange",
+                    linewidth=1.5,
+                    alpha=0.7,
+                    label="Nearest neighbour" if not nn_label_added else None,
+                )
+                nn_label_added = True
+            elif 0.9 * nnn_bond < dist < 1.1 * nnn_bond:
+                ax_supercell.plot(
+                    [supercell_positions[i, 0], supercell_positions[j, 0]],
+                    [supercell_positions[i, 1], supercell_positions[j, 1]],
+                    color="blue",
+                    linestyle="--",
+                    linewidth=1.5,
+                    alpha=0.7,
+                    label="Next nearest neighbour" if not nnn_label_added else None,
+                )
+                nnn_label_added = True
+
+    _handles, labels = ax_supercell.get_legend_handles_labels()
+    if any(labels):
+        ax_supercell.legend(loc="lower center", bbox_to_anchor=(0.5, -0.3), ncol=2)
+        plt.subplots_adjust(bottom=0.3)  # Make space for legend
+
+    return fig_supercell, ax_supercell
+
+
+def plot_2d_square_bz_path(path: np.ndarray, labels: list[str]) -> tuple[Figure, Axes]:
+    """
+    Plot the first Brillouin zone (BZ) of a 2D square lattice and the high-symmetry path used for phonon dispersion calculations.
+
+    Parameters
+    ----------
+    system : SquareLattice2DSystem
+        The 2D square lattice system for which the BZ is plotted.
+    path : np.ndarray
+        Array of q-points defining the path in the Brillouin zone.
+    labels : list of str
+        List of labels for the high-symmetry points along the path.
+
+    Returns
+    -------
+    tuple[Figure, Axes]
+        The matplotlib Figure and Axes objects for the plot.
+    """
+    fig, ax = plt.subplots(figsize=(4, 4))
+    # Square BZ from -0.5 to 0.5 in reduced coordinates
+    ax.plot([-0.5, 0.5, 0.5, -0.5, -0.5], [-0.5, -0.5, 0.5, 0.5, -0.5], "k-", lw=1)
+    ax.plot(path[:, 0], path[:, 1], "k-", lw=2)
+    arrowprops = {
+        "arrowstyle": "->",
+        "color": "k",
+        "lw": 1.5,
+        "shrinkA": 0,
+        "shrinkB": 0,
+    }
+    for i in range(len(path) - 1):
+        mid = (path[i] + path[i + 1]) / 2
+        ax.annotate("", xy=mid[:2], xytext=path[i][:2], arrowprops=arrowprops)
+    for i, pt in enumerate(path):
+        x, y = pt[0], pt[1]
+        ax.plot(x, y, "ro")
+        if labels[i] == r"$\Gamma$" and x == 0 and y == 0:
+            ax.text(x - 0.05, y, labels[i], fontsize=10, va="center", ha="right")
+        else:
+            ax.text(x + 0.05, y, labels[i], fontsize=10, va="center", ha="center")
+    ax.set_xticks([-0.5, 0, 0.5])
+    ax.set_xticklabels([r"$-\pi/a$", "0", r"$\pi/a$"])
+    ax.set_yticks([-0.5, 0, 0.5])
+    ax.set_yticklabels([r"$-\pi/a$", "0", r"$\pi/a$"])
+    ax.set_xlim(-0.6, 0.6)
+    ax.set_ylim(-0.6, 0.6)
+    ax.set_title("FBZ & Path", fontsize=12)
+    ax.set_aspect("equal")
+    fig.tight_layout()
+    return fig, ax
+
+
+def plot_dispersion_result(
+    result: NormalModeDispersionResult,
 ) -> tuple[Figure, Axes]:
     """
     Plot the phonon dispersion relation for a 2D  lattice system along a specified path in the First Brillouin zone.
@@ -44,24 +186,8 @@ def plot_2d_dispersion(
     tuple[Figure, Axes]
         The matplotlib Figure and Axes objects for the plot.
     """
-
-    def interpolate_path(
-        path: np.ndarray, n_points: int = 100
-    ) -> np.ndarray[Any, np.dtype[np.floating]]:
-        points = []
-        for i in range(len(path) - 1):
-            seg: np.ndarray = np.linspace(
-                path[i], path[i + 1], n_points, endpoint=False
-            )
-            points.append(seg)
-        points.append(path[-1][None, :])
-        return np.vstack(points)
-
-    q_path = interpolate_path(path, n_points=100)
-    phonon.run_band_structure([q_path], with_eigenvectors=True)
-    bands: dict[str, np.ndarray] = phonon.get_band_structure_dict()
-    distances = bands["distances"][0]
-    band_frequencies = bands["frequencies"][0]
+    distances = result.distances
+    band_frequencies = result.band_frequencies
 
     fig, ax = plt.subplots(figsize=(8, 6))
     num_bands = band_frequencies.shape[1]
@@ -71,17 +197,18 @@ def plot_2d_dispersion(
         ax.plot(distances, band_frequencies[:, i], color=color, linewidth=3)
 
     tick_locations = [distances[0]]
-    segment_length = len(distances) // (len(path) - 1)
+    segment_length = len(distances) // (len(result.path.labels) - 1)
     tick_locations.extend(
-        [distances[i * segment_length] for i in range(1, len(path) - 1)]
+        [distances[i * segment_length] for i in range(1, len(result.path.labels) - 1)]
     )
     tick_locations.append(distances[-1])
     ax.set_xticks(tick_locations)
-    ax.set_xticklabels(labels)
+    ax.set_xticklabels(result.path.labels)
     ax.set_xlim(distances[0], distances[-1])
     ax.set_ylabel("Frequency (THz)")
     ax.set_title(
-        f"Phonon Dispersion of  Lattice using up to next nearest neighbours: \n {system.n_repeatsa}x{system.n_repeatsb} supercell made of {system.element} atoms"
+        f"Phonon Dispersion of Lattice using up to next nearest neighbours: \n"
+        f"{result.system.n_repeats[0]}x{result.system.n_repeats[1]} supercell made of {result.system.element} atoms"
     )
     ax.grid(visible=True)
     fig.tight_layout()
@@ -157,7 +284,7 @@ def _plot_dispersion_path_labels(
 
 
 def plot_dispersion_path(
-    path: DispersionPath, system: Lattice2DSystem, axis: tuple[int, int] = (0, 1)
+    path: DispersionPath, system: System, axis: tuple[int, int] = (0, 1)
 ) -> tuple[Figure, Axes]:
     """Plot the first Brillouin zone (BZ) of a 2D lattice and the path used for phonon dispersion calculations. The plot size is set to 2pi/a by 2pi/b where a and b are the magnitudes of the lattice vectors."""
     a_vec = np.array(system.lattice_vector_a[:2])
