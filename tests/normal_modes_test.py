@@ -15,7 +15,7 @@ def test_dispersion_matches_analytical() -> None:
     k = 3.0
     system = normal_modes.System(
         element="Si",
-        lattice_constant=(7.0, 1.0, 1.0),
+        cell=np.diag([7.0, 1.0, 1.0]),
         n_repeats=(51, 1, 1),
         spring_constant=(k, 0.0, 0.0),
     )
@@ -42,7 +42,7 @@ def test_dispersion_matches_analytical() -> None:
 def test_normal_modes_result_shape() -> None:
     system = normal_modes.System(
         element="Si",
-        lattice_constant=(1, 1.0, 1.0),
+        cell=np.diag([1, 1.0, 1.0]),
         n_repeats=(8, 1, 1),
         spring_constant=(1.0, 0.0, 0.0),
     )
@@ -63,7 +63,7 @@ def test_normal_modes_result_shape() -> None:
 def test_omega_nonnegative() -> None:
     system = normal_modes.System(
         element="Si",
-        lattice_constant=(1.0, 1.0, 1.0),
+        cell=np.diag([1.0, 1.0, 1.0]),
         n_repeats=(100, 1, 1),
         spring_constant=(1.0, 0.0, 0.0),
     )
@@ -74,7 +74,7 @@ def test_omega_nonnegative() -> None:
 def test_acoustic_zero_at_q0() -> None:
     system = normal_modes.System(
         element="Si",
-        lattice_constant=(1.0, 1.0, 1.0),
+        cell=np.diag([1.0, 1.0, 1.0]),
         n_repeats=(101, 1, 1),
         spring_constant=(1.0, 0.0, 0.0),
     )
