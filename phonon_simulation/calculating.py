@@ -134,7 +134,10 @@ class DispersionPath:
 
 
 def build_force_constants_2d(
-    system: Lattice2DSystem, result: PhononSystem2DResult
+    system: Lattice2DSystem,
+    result: PhononSystem2DResult,
+    *,
+    vacancy: bool = False,
 ) -> np.ndarray:
     """
     Build the force constant matrix for a 2D lattice system including nearest and next nearest neighbor interactions using the atomic positions from a PhononSystem2DResult object and bond pairs found in find_lattice_bond_pairs.
@@ -145,19 +148,29 @@ def build_force_constants_2d(
         The 2D lattice system for which to build the force constant matrix.
     result : PhononSystem2DResult
         The result object containing cell, phonon, and positions.
+    vacancy : bool
+        If True, exclude the central atom from the force constants.
 
     Returns
     -------
     np.ndarray
         The force constant matrix of shape (num_atoms, num_atoms, 3, 3).
     """
-    num_atoms = system.n_repeatsa * system.n_repeatsb
     positions = result.get_positions()
-    fc = np.zeros((num_atoms, num_atoms, 3, 3), dtype=float)
     a_vec = np.array(system.lattice_vector_a)
     b_vec = np.array(system.lattice_vector_b)
+    num_atoms = positions.shape[0]
 
-    nn_pairs, nnn_pairs = find_lattice_bond_pairs(positions, a_vec, b_vec)
+    # Find central atom index if vacancy is True
+    central_atom_index = None
+    if vacancy:
+        central_atom_index = find_central_atom_index(system, positions, a_vec, b_vec)
+
+    nn_pairs, nnn_pairs = find_lattice_bond_pairs(
+        positions, system, vacancy=vacancy, central_atom_index=central_atom_index
+    )
+
+    fc = np.zeros((num_atoms, num_atoms, 3, 3), dtype=float)
 
     for i, j in nn_pairs:  # Nearest neighbor bonds
         displacement_vector = positions[j] - positions[i]
@@ -174,24 +187,36 @@ def build_force_constants_2d(
             for d2 in range(3):
                 fc[i, j, d1, d2] += -system.k_nnn * direction[d1] * direction[d2]
                 fc[i, i, d1, d2] += system.k_nnn * direction[d1] * direction[d2]
+    print(f"vacancy={vacancy}: {len(nn_pairs)} NN bonds, {len(nnn_pairs)} NNN bonds")
+    print(f"vacancy={vacancy}: force constant sum = {np.sum(np.abs(fc))}")
     return fc
 
 
 def calculate_2d_modes(
     system: Lattice2DSystem,
-) -> tuple[dict[str, np.ndarray], PhononSystem2DResult]:
+    *,
+    vacancy: bool = False,
+) -> tuple[dict[str, np.ndarray], PhononSystem2DResult, NormalMode2DResult]:
     """
-    Calculate the phonon modes for a 2D  lattice system.
+    Calculate the phonon modes for a 2D lattice system.
 
     Parameters
     ----------
     system : Lattice2DSystem
-        The 2D  lattice system for which to calculate the phonon modes.
+        The 2D lattice system for which to calculate phonon modes.
+    vacancy : bool, optional
+        If True, exclude the central atom from the calculation.
 
     Returns
     -------
-    tuple[dict[str, np.ndarray], PhononSystem2DResult]
-        A tuple containing the mesh dictionary with phonon properties and the PhononSystem2DResult object.
+    tuple
+        A tuple containing:
+            - mesh_dict: dict[str, np.ndarray]
+                Dictionary with mesh information including frequencies, eigenvectors, and q-points.
+            - result: PhononSystem2DResult
+                The result object containing cell, phonon, and positions.
+            - normal_modes: NormalMode2DResult
+                The normal mode results including frequencies, eigenvectors, and q-points.
     """
     cell = PhonopyAtoms(
         symbols=[system.element],
@@ -206,29 +231,85 @@ def calculate_2d_modes(
     phonon = Phonopy(unitcell=cell, supercell_matrix=supercell_matrix)
     positions = phonon.supercell.get_positions()
 
-    temp_result = PhononSystem2DResult(
-        cell=cell, phonon=phonon, positions=positions
-    )  # Create a temporary result object to pass positions
-    fc = build_force_constants_2d(system, temp_result)
+    temp_result = PhononSystem2DResult(cell=cell, phonon=phonon, positions=positions)
+    fc = build_force_constants_2d(system, temp_result, vacancy=vacancy)
     phonon.force_constants = fc
-    mesh = (system.n_repeatsa, system.n_repeatsb, 1)
+
+    mesh = [system.n_repeatsa, system.n_repeatsb, 1]
     phonon.run_mesh(
         mesh, with_eigenvectors=True, is_mesh_symmetry=False, is_gamma_center=True
     )
     mesh_dict: dict[str, np.ndarray] = phonon.get_mesh_dict()
     positions = phonon.supercell.get_positions()
     result = PhononSystem2DResult(cell=cell, phonon=phonon, positions=positions)
-    return mesh_dict, result
+
+    frequencies = mesh_dict["frequencies"]  # (Nq, Natoms*3)
+    eigenvectors = mesh_dict["eigenvectors"]  # (Nq, Natoms*3, Natoms*3)
+    qpoints = mesh_dict["qpoints"]  # (Nq, 3)
+    normal_modes = NormalMode2DResult(
+        system=system,
+        frequencies=frequencies,
+        eigenvectors=eigenvectors,
+        qpoints=qpoints,
+    )
+    return mesh_dict, result, normal_modes
 
 
-def find_lattice_bond_pairs(
+@dataclass(kw_only=True, frozen=True)
+class NormalMode2DResult:
+    """
+    Stores the normal mode results for a 2D phonon system.
+
+    Attributes
+    ----------
+    system : Lattice2DSystem
+        The 2D lattice system for which the normal modes are calculated.
+    frequencies : np.ndarray
+        Array of phonon frequencies (shape: (Nq, Natoms*3)).
+    eigenvectors : np.ndarray
+        Array of phonon eigenvectors (shape: (Nq, Natoms*3, Natoms*3)).
+    qpoints : np.ndarray
+        Array of q-points in reciprocal space (shape: (Nq, 3)).
+
+    Methods
+    -------
+    to_human_readable() -> str
+        Returns a human-readable string representation of the normal modes, including frequencies, q-points, and eigenvectors.
+    """
+
+    system: Lattice2DSystem
+    frequencies: np.ndarray
+    eigenvectors: np.ndarray
+    qpoints: np.ndarray
+
+    def to_human_readable(self) -> str:
+        """
+        Return a human-readable string representation of the normal modes, including frequencies, q-points, and eigenvectors.
+
+        Returns
+        -------
+        str
+            A formatted string containing the normal mode information for the system.
+        """
+        np.set_printoptions(
+            threshold=10000000000
+        )  # Large to ensure all are printed out with no truncation
+        return (
+            f"Normal modes for system: {self.system}\n"
+            f"Frequencies (THz):\n{np.array2string(self.frequencies, precision=6, separator=', ')}"
+            f"q-points:\n{np.array2string(self.qpoints, precision=6, separator=', ')}"
+            f"Eigenvectors:\n{np.array2string(self.eigenvectors, precision=3, separator=', ')}"
+        )
+
+
+def find_central_atom_index(
+    system: Lattice2DSystem,
     positions: np.ndarray,
     a_vec: np.ndarray,
     b_vec: np.ndarray,
-    rtol: float = 1e-3,
-) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+) -> int:
     """
-    Find nearest neighbor (nn) and next-nearest neighbor (nnn) atom pairs in a 2D lattice.
+    Find the index of the central atom in a 2D lattice.
 
     Parameters
     ----------
@@ -238,30 +319,57 @@ def find_lattice_bond_pairs(
         Lattice vector along the a direction.
     b_vec : np.ndarray
         Lattice vector along the b direction.
-    rtol : float
-        Relative tolerance for comparing vectors.
 
     Returns
     -------
-    tuple[list[tuple[int, int]], list[tuple[int, int]]]
-        A tuple containing two lists: nn_pairs and nnn_pairs, each as lists of (i, j) index pairs.
+    int
+        The index of the central atom.
     """
-    nn_pairs: list[tuple[int, int]] = []
-    nnn_pairs: list[tuple[int, int]] = []
+    cellsizea = system.n_repeatsa * a_vec
+    cellsizeb = system.n_repeatsb * b_vec
+    center_position = (cellsizea + cellsizeb) / 2.0
+    distances = np.linalg.norm(positions - center_position, axis=1)
+    return int(np.argmin(distances))
 
+
+def find_lattice_bond_pairs(
+    positions: np.ndarray,
+    system: Lattice2DSystem,
+    *,
+    vacancy: bool = False,
+    central_atom_index: int | None = None,
+) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
+    """Fast, vectorized search for nearest neighbor (nn) and next-nearest neighbor (nnn) atom pairs in a 2D lattice."""
+    a_vec = np.array(system.lattice_vector_a)
+    b_vec = np.array(system.lattice_vector_b)
     nnn_diag1 = a_vec + b_vec
     nnn_diag2 = a_vec - b_vec
-    for i in range(positions.shape[0]):
-        for j in range(positions.shape[0]):
-            disp = positions[j] - positions[i]
+    rtol = 1e-3
 
-            if np.allclose(disp, a_vec, rtol=rtol) or np.allclose(
-                disp, b_vec, rtol=rtol
-            ):
-                nn_pairs.append((i, j))
+    num_atoms = positions.shape[0]
+    # Mask for vacancy
+    mask = np.ones(num_atoms, dtype=bool)
+    if vacancy and central_atom_index is not None:
+        mask[central_atom_index] = False
 
-            elif np.allclose(disp, nnn_diag1, rtol=rtol) or np.allclose(
-                disp, nnn_diag2, rtol=rtol
-            ):
-                nnn_pairs.append((i, j))
+    # Compute all displacements (i, j, 3)
+    disp = positions[None, :, :] - positions[:, None, :]
+
+    # NN mask
+    nn_mask = np.all(np.isclose(disp, a_vec, rtol=rtol), axis=-1) | np.all(
+        np.isclose(disp, b_vec, rtol=rtol), axis=-1
+    )
+    # NNN mask
+    nnn_mask = np.all(np.isclose(disp, nnn_diag1, rtol=rtol), axis=-1) | np.all(
+        np.isclose(disp, nnn_diag2, rtol=rtol), axis=-1
+    )
+
+    # Apply vacancy mask to both axes
+    mask2d = mask[:, None] & mask[None, :]
+
+    nn_indices = np.argwhere(nn_mask & mask2d)
+    nnn_indices = np.argwhere(nnn_mask & mask2d)
+
+    nn_pairs = [tuple(idx) for idx in nn_indices]
+    nnn_pairs = [tuple(idx) for idx in nnn_indices]
     return nn_pairs, nnn_pairs
